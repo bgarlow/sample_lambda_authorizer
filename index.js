@@ -30,57 +30,14 @@ const jwtTokenHandler = new JwtTokenHandler({
  *
  * @type {{"fileshare.files.list": {method: string, resource: string}, "fileshare.files.get": {method: string, resource: string}, "fileshare.files.create": {method: string, resource: string}, "fileshare.files.update": {method: string, resource: string}, "fileshare.files.copy": {method: string, resource: string}, "fileshare.files.export": {method: string, resource: string}, "fileshare.files.delete": {method: string, resource: string}, "fileshare.comments.list": {method: string, resource: string}, "fileshare.comments.get": {method: string, resource: string}, "fileshare.comments.create": {method: string, resource: string}, "fileshare.comments.update": {method: string, resource: string}, "fileshare.comments.delete": {method: string, resource: string}}}
  */
-
 const scpMapping = {
-    'fileshare.files.list': {
-        method: 'GET',
-        resource: '/files'
-    },
-    'fileshare.files.get': {
-        method: 'GET',
-        resource: '/files/*'
-    },
-    'fileshare.files.create': {
-        method: 'POST',
-        resource: '/files'
-    },
-    'fileshare.files.update': {
-        method: 'POST',
-        resource: '/files/*'
-    },
-    'fileshare.files.copy': {
-        method: 'POST',
-        resource: '/files/*/copy'
-    },
-    'fileshare.files.export': {
-        method: 'POST',
-        resource: '/files/*/export'
-    },
-    'fileshare.files.delete': {
-        method: 'DELETE',
-        resource: '/files/*'
-    },
-    'fileshare.comments.list': {
-        method: 'GET',
-        resource: '/comments'
-    },
-    'fileshare.comments.get': {
-        method: 'GET',
-        resource: '/comments'
-    },
-    'fileshare.comments.create': {
-        method: 'POST',
-        resource: '/comments'
-    },
-    'fileshare.comments.update': {
-        method: 'POST',
-        resource: '/comments'
-    },
-    'fileshare.comments.delete': {
-        method: 'DELETE',
-        resource: '/comments'
-    }
+  'fab:read': {
+      method: 'GET',
+      resource: '/banks'
+  }
 };
+
+let authorizerMessage;
 
 //Bind prefix to log levels
 console.log = console.log.bind(null, '[LOG]');
@@ -106,6 +63,8 @@ const buildPolicyDocument = (claims, awsAccountId, apiOptions, resource, pathPar
     let scopedResource;
     const scopes = Object.keys(scpMapping);
 
+    authorizerMessage = '';
+
     // If the jwtTokenHandler token validation fails for any reason, we'll call buildPolicyDocument with denyAll = true.
     // We'll build a policy document denying all methods, to which we can append a context object that can contain
     // an attribute-value pair with the actual error message returned from jwtTokenHandler. This is only for demo purposes,
@@ -125,8 +84,11 @@ const buildPolicyDocument = (claims, awsAccountId, apiOptions, resource, pathPar
 
             // If the scopes claim in the access token contains the current scope, add the corresponding (from scpMapping)
             //  method and resource to the policy document.
-            if (claims.scp.includes(scope)) {
+            if (claims && claims.scp && claims.scp.includes(scope)) {
                 policy.allowMethod(AuthPolicy.HttpVerb[scpMapping[scope].method], scopedResource);
+            } else {
+                policy.denyMethod(AuthPolicy.HttpVerb[scpMapping[scope].method], scopedResource);
+                authorizerMessage += `Explicitly Deny ${AuthPolicy.HttpVerb[scpMapping[scope].method]} ${scopedResource} missing scope: ${scope}`;
             }
 
         }
@@ -150,11 +112,6 @@ exports.handler = function (event, context, callback) {
         event: event,
         context: context
     };
-
-
-    //const tokenString = params.authorizationToken;
-    //console.log(tokenString);
-
 
 
     // decompose the event object's methodArn to extract details needed for token validation.
@@ -190,6 +147,11 @@ exports.handler = function (event, context, callback) {
         id: pathParam
     };
 
+
+    console.log(`event.authorizationToken follows...`);
+    console.log(event.authorizationToken);
+
+
     // Validate the token using
     jwtTokenHandler.verifyRequest({
         headers: {
@@ -203,36 +165,34 @@ exports.handler = function (event, context, callback) {
         //  demo to consume and display. API gateway responses will be edited to display authorizer.err.
         if (err) {
 
+            console.log(`Error in jwtTokenHandler.verifyRequest follows...`);
+            console.log(err);
+
             let policy = buildPolicyDocument(claims, awsAccountId, apiOptions, resource, pathParam, true);
             let policyDoc = policy.build();
 
             const errString = err.toString();
             policyDoc.context = {
-                err: errString
+                authorizerMessage: errString
             };
 
             console.log(`Failed to validate bearer token: ${errString}`);
-            context.err = errString;
-            console.log(`policy follows...`);
-            console.log(policy);
-            console.log('*** (err) policyDoc follows...');
-            console.log(policyDoc);
+
             // In order for AWS Gateway to return a generic 401 response, you have to send 'Unauthorized' to the callback.
             // We want to return the policy document along with the context object so that we can see what actually failed,
             // so we'll be getting 403 Access Denied. The API gateway's response message for 403 Access Denied has been edited
             // to show the err value populated above.
             //return callback('Unauthorized');
-            return callback(null, policyDoc);
+
+            console.log(`Error Condition: policyDoc follows...`);
+            console.log(JSON.stringify(policyDoc));
+            callback(null, policyDoc);
         }
 
 
         let policy = buildPolicyDocument(claims, awsAccountId, apiOptions, resource, pathParam, false);
 
-        const scopes = claims.scp;
-
-        console.log(`scopes: ${scopes}`);
-        console.log(`*** policy document follows...`);
-        console.log(policy);
+        const scopes = (claims && claims.scp) ? claims.scp.join(' ') : null;
 
         let policyDoc = policy.build();
 
@@ -246,20 +206,24 @@ exports.handler = function (event, context, callback) {
             region: apiOptions.region,
             restApiId: apiOptions.restApiId,
             state: apiOptions.stage,
-            scopes: scopes.join(' '),
+            scopes: scopes,
             method: method,
-            resource: resource,
+            apiResource: resource,
             pathParam: pathParam,
             principalId: policyDoc.principalId,
             version: policyDoc.policyDocument.Version,
             action: policyDoc.policyDocument.Statement[0].Action,
             effect: policyDoc.policyDocument.Statement[0].Effect,
-            effect: policyDoc.policyDocument.Statement[0].Resource.join(" ")
+            resource: policyDoc.policyDocument.Statement[0].Resource.join(" "),
+            authorizerMessage: authorizerMessage
 
         }
 
         policyDoc.context = authorizerResponseContext;
 
-        return callback(null, policyDoc);
+        console.log(`policyDoc follows...`);
+        console.log(JSON.stringify(policyDoc));
+
+        callback(null, policyDoc);
     });
 };
