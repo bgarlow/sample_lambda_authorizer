@@ -15,8 +15,9 @@
 .settings/
 *.sublime-workspace
 
- .DS_Store
-
+# System Files
+.DS_Store
+Thumbs.db
  tmp
 
  # Runtime data
