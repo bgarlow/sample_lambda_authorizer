@@ -9,7 +9,7 @@
  # Visual Studio Code
  .vscode
 
- .idea/*
+ .idea/
 
  .DS_store
 
