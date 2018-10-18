@@ -35,8 +35,13 @@ const scpMapping = {
 
 To use the messages returned in the `authorizerMessage` attribute, you'll need to modify the API's Gateway Response messages. I modified Default 4XX, and the 403 responses like this:
 ```json
-{"[Default 4XX] message":$context.error.messageString,<br>"Authorizer Message":"$context.authorizer.authorizerMessage"}
+{
+    "[Default 4XX] message": $context.error.messageString,
+    "Authorizer Message": "$context.authorizer.authorizerMessage"
+}
 ```
+
+
 Where `$context.authorizer.authorizerMessage` is the `authorizerMessage` attribute returned on the policy document context object.
 
 ### Environment Variables (.env)
