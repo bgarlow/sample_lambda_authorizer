@@ -69,8 +69,9 @@ Run `npm install` to download all of the authorizer's dependent modules. This is
 
 ### Create Bundle
 
-You can create the bundle using `npm run zip`. This creates a oauth2-jwt-authorizer.zip deployment package in the `dist` folder with all the source, configuration and node modules AWS Lambda needs.
+There are several ways to deploy this lambda to AWS. This document won't go into those details, but you will need a bundle, so:
 
+Run `npm run bundle`. This will create custom-authorizer.zip with all the source, configuration and node modules AWS Lambda needs.
 
 ### Test your endpoint remotely
 

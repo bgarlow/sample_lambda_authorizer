@@ -50,3 +50,4 @@
  event.json
  policyDocument.json
  *.zip
+custom-authorizer.zip
