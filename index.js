@@ -28,8 +28,7 @@ const jwtTokenHandler = new JwtTokenHandler({
  * The mapping will be used to generate a policy document allowing the appropriate API endpoints for the
  *  access token provided.
  *
- * @type {{"fileshare.files.list": {method: string, resource: string}, "fileshare.files.get": {method: string, resource: string}, "fileshare.files.create": {method: string, resource: string}, "fileshare.files.update": {method: string, resource: string}, "fileshare.files.copy": {method: string, resource: string}, "fileshare.files.export": {method: string, resource: string}, "fileshare.files.delete": {method: string, resource: string}, "fileshare.comments.list": {method: string, resource: string}, "fileshare.comments.get": {method: string, resource: string}, "fileshare.comments.create": {method: string, resource: string}, "fileshare.comments.update": {method: string, resource: string}, "fileshare.comments.delete": {method: string, resource: string}}}
- */
+  */
 const scpMapping = {
   'fab:read': {
       method: 'GET',

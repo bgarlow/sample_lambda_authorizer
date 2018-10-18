@@ -1,11 +1,43 @@
 # Sample Lambda Authorizer for AWS API Gateway
-### This sample is based on https://github.com/mcguinness/node-lambda-oauth2-jwt-authorizer by Karl McGuinness. Karl's original README can be found on his github repo at [https://github.com/mcguinness/node-lambda-oauth2-jwt-authorizer](https://github.com/mcguinness/node-lambda-oauth2-jwt-authorizer). A modified version, including changes made for this sample, is included below.
-
-# OAuth 2.0 Bearer JWT Authorizer for AWS API Gateway
+This sample is based on https://github.com/mcguinness/node-lambda-oauth2-jwt-authorizer by Karl McGuinness. Karl's original README can be found on his github repo at [https://github.com/mcguinness/node-lambda-oauth2-jwt-authorizer](https://github.com/mcguinness/node-lambda-oauth2-jwt-authorizer). A modified version, including changes made for this sample, is included below.
 
 This project is sample implementation of an AWS Lambda custom authorizer for [AWS API Gateway](https://aws.amazon.com/api-gateway/) that works with a JWT bearer token (`id_token` or `access_token`) issued by an OAuth 2.0 Authorization Server.  It can be used to secure access to APIs managed by [AWS API Gateway](https://aws.amazon.com/api-gateway/).
 
+## Use Case
+This authorize was built as a demo tool to show how to secure an API resource on AWS API Gateway using OAuth 2.0. The authorizer is specifically designed to work with [mock_api_lambda](https://github.com/bgarlow/mock_api_lambda), a Lambda Function that serves as a mock API endpoint. The authorizer adds data about the policy decision (success and failure) to the context object of it's response to the API Gateway. The mock_api_lambda function, in turn, returns that contextual information in it's response. 
+
+In addition to 
+
 ## Configuration
+
+## How it works
+
+### Scopes
+
+The authorizer uses a simple json mapping object to define which scopes are required for each API resource/HTTP method. A scope is mapped to an HTTP method/resource pair (an endpoint). This can be a 1:1 mapping, or several scopes could be required for a single method/resource as shown below. 
+
+The authorizer will loop through the scopes in the mapping json object, comparing them with the scopes present in the bearer token. When a match is found, the method/resource is added to the policy document as an explicit allow. If a scope in the scope mapping JSON is not present in the bearer token, the access policy explicitly deny access to the method/resource, and add an error message to the `authorizerMessage` attribute of policy document's context indicating which scope(s) were missing. The `authorizerMessage` is used to provide more informative (demo purposes only) error message from the API Gateway. Here's a sample scope->method/resource mapping, where the scope fab:read is required to access the /banks resource via GET. 
+
+```javascript
+const scpMapping = {
+  'fab:read': {
+      method: 'GET',
+      resource: '/banks'
+  },
+  'banks:read': {
+      method: 'GET',
+      resource: '/banks'
+  }
+};
+````
+
+### Context Object and Messages
+
+To use the messages returned in the `authorizerMessage` attribute, you'll need to modify the API's Gateway Response messages. I modified Default 4XX, and the 403 responses like this:
+```json
+{"[Default 4XX] message":$context.error.messageString,<br>"Authorizer Message":"$context.authorizer.authorizerMessage"}
+```
+Where `$context.authorizer.authorizerMessage` is the `authorizerMessage` attribute returned on the policy document context object.
 
 ### Environment Variables (.env)
 
@@ -28,11 +60,6 @@ Update `keys.json` with the JSON Web Key Set (JWKS) format for your issuer.   Yo
 
 > Ensure that your issuer uses a pinned key for token signatures and does not automatically rotate signing keys.  The authorizer currently does not support persistence of cached keys (e.g. dynamo) obtained via metadata discovery.
 
-### Scopes
-
-This sample currently enforces scope-based access to API resources using the `scp` claim in the JWT.  The `api:read` scope is required for `GET` requests and `api:write` scope for `POST`, `PUT`, `PATCH`, or `DELETE` requests.
-
-Update `index.js` with your authorization requirements and return the resulting AWS IAM Policy for the request.
 
 # Deployment
 
