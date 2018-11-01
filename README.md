@@ -1,3 +1,5 @@
+# TODO - total rewrite - this one isn't based on Karl's example
+
 # Sample Lambda Authorizer for AWS API Gateway
 This sample is based on https://github.com/mcguinness/node-lambda-oauth2-jwt-authorizer by Karl McGuinness. Karl's original README can be found on his github repo at [https://github.com/mcguinness/node-lambda-oauth2-jwt-authorizer](https://github.com/mcguinness/node-lambda-oauth2-jwt-authorizer). A modified version, including changes made for this sample, is included below.
 

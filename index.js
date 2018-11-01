@@ -1,16 +1,16 @@
 require('dotenv').config();
-const JwtTokenHandler = require('oauth2-bearer-jwt-handler').JwtTokenHandler;
+//const JwtTokenHandler = require('oauth2-bearer-jwt-handler').JwtTokenHandler;
 const AuthPolicy = require('./auth-policy');
-const fs = require('fs');
-const jwksClient = require('jwks-rsa');
+//const fs = require('fs');
+//const jwksClient = require('jwks-rsa');
 
-/**
- *  TODO: replace the static jwks file with a method to fetch and cache from the auth server
- */
-
+const OktaJwtVerifier = require('@okta/jwt-verifier');
 
 const issuer = process.env.ISSUER;
 const audience = process.env.AUDIENCE;
+const clientId = process.env.CLIENT_ID;
+
+/*
 // current version uses static keys file
 const jwks = fs.readFileSync('keys.json', 'utf8');
 let tokenClaims;
@@ -20,6 +20,12 @@ const jwtTokenHandler = new JwtTokenHandler({
     issuer: issuer,
     audience: audience,
     jwks: jwks
+});
+*/
+
+const oktaAccessTokenVerifier = new OktaJwtVerifier({
+    issuer: issuer,
+    clientId: clientId
 });
 
 /**
@@ -123,6 +129,7 @@ exports.handler = function (event, context, callback) {
     apiOptions.stage = apiGatewayArnPart[1];
     const method = apiGatewayArnPart[2];
     let resource = '/'; // root resource
+    let claims;
 
     if (apiGatewayArnPart[3]) {
         resource += apiGatewayArnPart[3];
@@ -150,7 +157,78 @@ exports.handler = function (event, context, callback) {
     console.log(`event.authorizationToken follows...`);
     console.log(event.authorizationToken);
 
+    accessToken = event.authorizationToken.split(' ')[1];
+    console.log(accessToken);
 
+    oktaAccessTokenVerifier.verifyAccessToken(accessToken)
+        .then(jwt => {
+            // the token is valid
+            claims = jwt.claims;
+            console.log(`tokenClaims follows...`);
+            console.log(claims);
+
+            let policy = buildPolicyDocument(claims, awsAccountId, apiOptions, resource, pathParam, false);
+
+            const scopes = (claims && claims.scp) ? claims.scp.join(' ') : null;
+
+            let policyDoc = policy.build();
+
+            // Pack the authorizer context with some useful info that can be referenced by the API
+            const authorizerResponseContext = {
+                issuer: issuer,
+                audience: audience,
+                //jwks: jwks.toString(),
+                claims: JSON.stringify(claims),
+                awsAccountId: awsAccountId,
+                region: apiOptions.region,
+                restApiId: apiOptions.restApiId,
+                state: apiOptions.stage,
+                scopes: scopes,
+                method: method,
+                apiResource: resource,
+                pathParam: pathParam,
+                principalId: policyDoc.principalId,
+                version: policyDoc.policyDocument.Version,
+                action: policyDoc.policyDocument.Statement[0].Action,
+                effect: policyDoc.policyDocument.Statement[0].Effect,
+                resource: policyDoc.policyDocument.Statement[0].Resource.join(" "),
+                authorizerMessage: authorizerMessage
+            };
+
+            policyDoc.context = authorizerResponseContext;
+
+            console.log(`policyDoc follows...`);
+            console.log(JSON.stringify(policyDoc));
+
+            callback(null, policyDoc);
+        })
+        .catch(err => {
+            console.log(`Error in jwtTokenHandler.verifyRequest follows...`);
+            console.log(err);
+
+            let policy = buildPolicyDocument(claims, awsAccountId, apiOptions, resource, pathParam, true);
+            let policyDoc = policy.build();
+
+            const errString = err.toString();
+            policyDoc.context = {
+                authorizerMessage: errString
+            };
+
+            console.log(`Failed to validate bearer token: ${errString}`);
+
+            // In order for AWS Gateway to return a generic 401 response, you have to send 'Unauthorized' to the callback.
+            // We want to return the policy document along with the context object so that we can see what actually failed,
+            // so we'll be getting 403 Access Denied. The API gateway's response message for 403 Access Denied has been edited
+            // to show the err value populated above.
+            //return callback('Unauthorized');
+
+            console.log(`Error Condition: policyDoc follows...`);
+            console.log(JSON.stringify(policyDoc));
+            callback(null, policyDoc);
+        });
+
+
+    /*
     // Validate the token using
     jwtTokenHandler.verifyRequest({
         headers: {
@@ -225,4 +303,5 @@ exports.handler = function (event, context, callback) {
 
         callback(null, policyDoc);
     });
+    */
 };

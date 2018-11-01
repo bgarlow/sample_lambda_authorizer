@@ -6,6 +6,19 @@
  # zip file
  *.zip
 
+# compiled output
+/dist
+/tmp
+/out-tsc
+
+# dependencies
+/node_modules
+
+# configuration and environment variables
+.env
+package-lock.json
+
+
 # IDEs and editors
 /.idea
 .project
